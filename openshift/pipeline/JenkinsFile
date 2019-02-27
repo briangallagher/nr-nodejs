@@ -3,7 +3,7 @@
 pipeline {
 
   agent {
-	  label 'maven-slave'
+	  label 'maven-appdev'
 	}
 
   stages{
