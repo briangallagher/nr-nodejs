@@ -1,6 +1,11 @@
 #!/usr/bin/env groovy
 
 pipeline {
+
+  agent {
+	  label 'jenkins-agent'
+	}
+
   stages{
     stage('Init'){
       steps {
@@ -11,3 +16,7 @@ pipeline {
     }   
   }
 }
+
+
+// oc new-app https://github.com/rhappdev/nodejs-template.git --context-dir=openshift/pipeline --name <<name of the pipeline>>
+
