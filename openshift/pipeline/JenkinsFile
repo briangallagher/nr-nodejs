@@ -13,17 +13,26 @@ pipeline {
 
     stage('Init'){
       // TODO: Describe purpose of Init
-      sh 'echo "Running the Init Stage" '
-      
-      // shared lib
-      // Get the version => can be a module. Set as variable
 
-      version()
+
+      steps {
+        script {
+          sh 'echo "Running the Init Stage" '
+          // shared lib
+          // Get the version => can be a module. Set as variable
+          version()
+        }
+      }
     }
 
     stage('Clone'){
       // TODO: Describe purpose of Clone
-      sh 'echo "Running the Clone Stage" '
+      
+      steps {
+        script {
+          sh 'echo "Running the Clone Stage" '
+        }
+      }
 
       // shared lib, pass in default as a param or default to develop. Default the default
       // Prompt for branch/tag, default to develop, Jannes example good here
@@ -33,7 +42,13 @@ pipeline {
 
     stage('Build Code'){
       // TODO: Describe purpose of Build Code
-      sh 'echo "Running the Build Code Stage" '
+
+      steps {
+        script {
+          sh 'echo "Running the Build Code Stage" '
+        }
+      }
+
 
       // can be shared lib???
       // npm install
@@ -45,7 +60,11 @@ pipeline {
 
     stage('QA Code'){
       // TODO: Describe purpose of QA Code
-      sh 'echo "Running the QA Code Stage" '
+      steps {
+        script {
+          sh 'echo "Running the QA Code Stage" '
+        }
+      }
 
       // no need for share lib
       // call out to unit tests
@@ -55,8 +74,12 @@ pipeline {
 
     stage('Build Image'){
       // TODO: Describe purpose of Build Image
-      sh 'echo "Running the Build Image Stage" '
 
+      steps {
+        script {
+          sh 'echo "Running the Build Image Stage" '
+        }
+      }
       // Shared lib
       // openshiftNodejsBuild
       // see Mikels openshiftBuildAndDeploy.groovy
@@ -64,7 +87,11 @@ pipeline {
 
     stage('Deploy to Dev'){
       // TODO: Describe purpose of Deploy to Dev
-      sh 'echo "Running the Deploy to Dev Stage" '
+      steps {
+        script {
+          sh 'echo "Running the Deploy to Dev Stage" '
+        }
+      }      
 
       // Step1 
       // Configuration Management
@@ -95,14 +122,18 @@ pipeline {
 
     stage('QA Image'){
       // TODO: Describe purpose of QA Image
-      sh 'echo "Running the QA Image Stage" '
       // Blank for now
       // Automated black box testing / functioanl testing / API testing etc 
+      steps {
+        script {
+          sh 'echo "Running the QA Image Stage" '
+        }
+      }        
     }
 
     stage('Deploy to Test'){
       // TODO: Describe purpose of Deploy to Test
-      sh 'echo "Running the Deploy to Test Stage" '
+      
 
       // only runs for master and hotfix branches - add check
       // Prompt user if they want to move specific version image to test
@@ -110,11 +141,22 @@ pipeline {
 
       // Similar to "Deploy to Dev"
 
+      steps {
+        script {
+          sh 'echo "Running the Deploy to Test Stage" '
+        }
+      }        
+
     }
 
     stage('Prepare Image for Prod'){
       // TODO: Describe purpose of Prepare Image for Prod
-      sh 'echo "Running the Prepare Image for Prod Stage" '
+
+      steps {
+        script {
+          sh 'echo "Running the Prepare Image for Prod Stage" '
+        }
+      }  
       
       // NOTE: this entire step is probably not required for the spike
 

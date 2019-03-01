@@ -18,7 +18,7 @@ oc new-app --template nodejs-app -p NAMESPACE=nr-dev -p SOURCE_REPOSITORY_URL=ht
 
 
 # Create a pipeline Build Config for the pipeline 
-oc process -f ../templates/pipelineBuildConfig.yml -p LABEL_APP_NAME=jenkins -p JENKINS_FILENAME=./openshift/pipeline/JenkinsFile -p GIT_URL=https://github.com/briangallagher/nr-nodejs.git | oc create -f - -n $NAMESPACE
+oc process -f ../templates/pipelineBuildConfig.yml -p LABEL_APP_NAME=jenkins -p JENKINS_FILENAME=./openshift/pipeline/JenkinsFile -p GIT_URL=https://github.com/briangallagher/nr-nodejs.git | oc create -f - -n nr-jenkins
 
 
 
