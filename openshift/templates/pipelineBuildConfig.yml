@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Template
+labels:
+  template: pipeline-bc-from-git-template
+message: Created deployment config. Generic trigger value is ${GENERIC_TRIGGER_SECRET_VALUE} and Bitbucket trigger value is ${BITBUCKET_TRIGGER_SECRET_VALUE}.
+metadata:
+  annotations:
+    description: Template for creating a deployment config to run a jenkins pipeline from git.
+  creationTimestamp: null
+  name: pipeline-bc-from-git-template
+objects:
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: pipeline-bc-from-git-template
+    creationTimestamp: null
+    labels:
+      app: ${LABEL_APP_NAME}
+    name: ${LABEL_APP_NAME}-pipeline
+  spec:
+    nodeSelector: null
+    output: {}
+    postCommit: {}
+    resources: {}
+    runPolicy: SerialLatestOnly
+    source:
+      git:
+        ref: ${GIT_BRANCH}
+        uri: ${GIT_URL}
+      type: Git
+    strategy:
+      jenkinsPipelineStrategy:
+        jenkinsfilePath: ${JENKINS_FILENAME}
+      type: JenkinsPipeline
+parameters:
+- name: GIT_URL
+  required: true
+  description: URL to git repository.
+- name: GIT_BRANCH
+  value: master
+- name: JENKINS_FILENAME
+  required: true
+  description: Name of jenkinsfile.
+- name: LABEL_APP_NAME
+  required: true
+  description: Value for app-label
+
+

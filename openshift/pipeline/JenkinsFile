@@ -4,6 +4,7 @@
 
 pipeline {
 
+
   agent {
 	  label 'nodejs4'
 	}
