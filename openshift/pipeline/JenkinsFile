@@ -7,16 +7,132 @@ pipeline {
 	}
 
   stages{
+
     stage('Init'){
-      steps {
-        script {
-          sh 'echo "Hello from the pipeline" '
-        }
-      }
-    }   
+      // TODO: Describe purpose of Init
+      sh 'echo "Running the Init Stage" '
+      
+      // shared lib
+      // Get the version => can be a module. Set as variable
+
+    }
+
+    stage('Clone'){
+      // TODO: Describe purpose of Clone
+      sh 'echo "Running the Clone Stage" '
+
+      // shared lib, pass in default as a param or default to develop. Default the default
+      // Prompt for branch/tag, default to develop, Jannes example good here
+      // Need ot be able to accept a branch or tag
+
+    }
+
+    stage('Build Code'){
+      // TODO: Describe purpose of Build Code
+      sh 'echo "Running the Build Code Stage" '
+
+      // can be shared lib???
+      // npm install
+      // npm build
+      // tar artifact
+      // stash
+
+    }
+
+    stage('QA Code'){
+      // TODO: Describe purpose of QA Code
+      sh 'echo "Running the QA Code Stage" '
+
+      // no need for share lib
+      // call out to unit tests
+      // call out to sonar 
+      // etc etc 
+    }
+
+    stage('Build Image'){
+      // TODO: Describe purpose of Build Image
+      sh 'echo "Running the Build Image Stage" '
+
+      // Shared lib
+      // openshiftNodejsBuild
+      // see Mikels openshiftBuildAndDeploy.groovy
+    }
+
+    stage('Deploy to Dev'){
+      // TODO: Describe purpose of Deploy to Dev
+      sh 'echo "Running the Deploy to Dev Stage" '
+
+      // Step1 
+      // Configuration Management
+      // Delete all and recreate - use folder structure in code base as a convention
+      // Config Map       // shared lib
+      // Secrets          // shared lib
+      // Environments etc // shared lib
+
+
+      // Step 2
+      // Shared Lib
+      // Simple Deploy to Dev
+        // See below from Janne
+        // def dc = openshift.selector('dc', "${applicationName}")
+        // dcmap = dc.object()
+        // dcmap.spec.template.spec.containers[0].image = "${registry}/${registryNamespace}/${imageStream}:${imageTag}"
+        // dcmap.spec.replicas = replicaCount
+        // openshift.apply(dcmap)
+
+      // Step 3
+      // Apply newly created Configm Maps and Secrets
+      // Might require patching the deployment config
+      // Patch the DC because its a variable number of things. Just with the Config Map stuff, not a full template
+
+      // NOTE:
+      // For the spike we might hard code the adding of the config map as the above functioanlity will take some time
+    }
+
+    stage('QA Image'){
+      // TODO: Describe purpose of QA Image
+      sh 'echo "Running the QA Image Stage" '
+      // Blank for now
+      // Automated black box testing / functioanl testing / API testing etc 
+    }
+
+    stage('Deploy to Test'){
+      // TODO: Describe purpose of Deploy to Test
+      sh 'echo "Running the Deploy to Test Stage" '
+
+      // only runs for master and hotfix branches - add check
+      // Prompt user if they want to move specific version image to test
+      // TAg it // possibly shared lib
+
+      // Similar to "Deploy to Dev"
+
+    }
+
+    stage('Prepare Image for Prod'){
+      // TODO: Describe purpose of Prepare Image for Prod
+      sh 'echo "Running the Prepare Image for Prod Stage" '
+      
+      // NOTE: this entire step is probably not required for the spike
+
+      // only runs for master and hotfix branches
+
+      // only runs for master and hotfix branches - add check
+      // Prompt user if they want to move specific version image to test
+      // Tag it // possibly shared lib
+
+      // Push using Skopeo
+
+      // ISSUE HERE!!!!
+      // ISSUE HERE!!!!
+      
+      // What happens in the scenario where the QA manual testing takes a week?
+      // Does the pipeline pause?
+      // Could be a backlog of executing pipelines?
+      // Look at milestones and     runPolicy: SerialLatestOnly
+
+      // Stick in Nexus instead of Remote registry
+    }
+
   }
 }
-
-
-// oc new-app https://github.com/rhappdev/nodejs-template.git --context-dir=openshift/pipeline --name <<name of the pipeline>>
 
