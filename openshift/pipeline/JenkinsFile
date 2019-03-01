@@ -1,9 +1,11 @@
 #!/usr/bin/env groovy
 
+@Library('pipelines') _
+
 pipeline {
 
   agent {
-	  label 'maven-appdev'
+	  label 'nodejs4'
 	}
 
   stages{
@@ -15,6 +17,7 @@ pipeline {
       // shared lib
       // Get the version => can be a module. Set as variable
 
+      version()
     }
 
     stage('Clone'){
@@ -135,4 +138,23 @@ pipeline {
 
   }
 }
+
+// plugins
+// Openshift client plugin v1.0.7 (https://updates.jenkins.io/download/plugins/openshift-client/1.0.7/openshift-client.hpi).                done! 
+// Multibranch pipeline plugin v2.15 (https://updates.jenkins.io/download/plugins/workflow-multibranch/2.15/workflow-multibranch.hpi)       done! 
+// HTML Publisher v1.16 (https://updates.jenkins.io/download/plugins/htmlpublisher/1.16/htmlpublisher.hpi)
+// Milestones plugin v1.3 (https://updates.jenkins.io/download/plugins/pipeline-milestone-step/1.3/pipeline-milestone-step.hpi)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
