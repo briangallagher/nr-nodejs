@@ -1,29 +1,33 @@
 #!/usr/bin/env groovy
 
-@Library('pipelines') _
+@Library('pipelines@tesing-vars') _
 
-def GIT_BRANCH = 'develop'
-
+def GIT_REPO = "github.com/cfoskin/migration-mainlines-cloud.git";
+def GIT_BRANCH = 'jenkins-pipeline-setup';
+def APP_VERSION = '';
+def STASHED_ARTIFACT = 'buildArtifact'
+def DEV_NAMESPACE = 'nr-dev-cf'
+def APP_NAME = 'develop'
 
 pipeline {
 
 
   agent {
-	  label 'nodejs4'
+	  label 'nodejs6'
 	}
 
   stages{
 
-    
     stage('Init'){
       // Set up the build directory and delete the old one. This can be extended if needed.
       steps {
         script {
+          sh 'node --version '
           init()
         }
       }
     }
-
+    
     stage('Set branch') {
       // Let the user input what branch to build, defaults to the develop branch as per spec.
       steps {
@@ -56,8 +60,8 @@ pipeline {
       // Need ot be able to accept a branch or tag
     }
 
-    stage('Set Version'){
-       // Get the version from the package.json of the node app and store this for the image tagging. Need the repo cloned to actually do this
+     stage('Set Version'){
+       // Get the version from the package.json of the node app and store this for the image tagging.
         steps {
           script {
             dir('oc-build') {
@@ -68,7 +72,7 @@ pipeline {
         }
     }
 
-     stage('Build Code'){
+    stage('Build Code'){
       // Build the code 
 
       steps {
@@ -104,8 +108,8 @@ pipeline {
 
     }
 
-     stage('Build Image'){
-      // TODO: Describe purpose of Build Image
+    stage('Build Image'){
+     // Perform the Openshift build 
       steps {
         script {
            openshift.withProject(DEV_NAMESPACE) {
@@ -114,16 +118,12 @@ pipeline {
               if(dc.exists()) {
                   echo "Removing trigger for Deployment config"
                   openshift.set("triggers", "dc/${APP_NAME}", "--from-config", "--remove")
-                 // openshift.set("triggers", "dc/${APP_NAME}", "--from-image", "--remove")
+                  openshift.set("triggers", "dc/${APP_NAME}", "--from-image=${DEV_NAMESPACE}/${APP_NAME}:latest", "--remove")
               } else {
                   echo "No deployment exists"
               }
 
-              sh 'ls -l'
-
               unstash name: STASHED_ARTIFACT
-
-              sh 'ls -l'
 
               def bc = openshift.selector('bc', "${APP_NAME}")
               bc.startBuild("--from-archive=archive.tar")
@@ -139,49 +139,55 @@ pipeline {
           }
         }
       }
-      // Shared lib
-      // openshiftNodejsBuild
-      // see Mikels openshiftBuildAndDeploy.groovy
     }
 
     stage('Deploy to Dev'){
-      // TODO: Describe purpose of Deploy to Dev
-      steps {
+      //Deploy the image to the dev environment but manage environment variables first with configmaps, secrets etc
         script {
-          sh 'echo "Running the Deploy to Dev Stage" '
+          openshift.withProject(DEV_NAMESPACE) {
+              dir('oc-build'){
+                sh 'echo "Running the Deploy to Dev Stage" '
+                sh 'echo "Managing Environment Variables" '
+
+                def cmEnv = "openshift/properties/configmaps/dev.properties"
+          
+                def cfgEnv = openshift.selector("cm/${APP_NAME}-cm-env")
+                if (cfgEnv.exists()) {
+                  cfgEnv.delete()
+                }
+                if (fileExists(cmEnv)) {
+                    openshift.create("configmap", "${APP_NAME}-cm-env", "--from-env-file=${cmEnv}")
+                } else {
+                    echo 'No CM-ENV file Exists'
+                }
+
+
+                echo "Rolling out Deployment of Application.."
+                def dcObj = dc.object()
+                def dc = openshift.selector( "dc/${APP_NAME}")
+                if (dc.exists()) {
+                  if (cfgEnv.exists()) {
+                    openshift.set("env", "dc/${APP_NAME}", "--from=configmap/${APP_NAME}-cm-env")
+                    dc.rollout().latest()
+                  }
+               }
+               
+                echo "Verifying Application deployment has been rolled out.."
+                def dcObj = dc.object()
+                def podSelector = openshift.selector('pod', [deployment: "${APP_NAME}-${dcObj.status.latestVersion}"])
+                podSelector.untilEach {
+                    echo "VERIFY pod: ${it.name()}"
+                    return it.object().status.containerStatuses[0].ready
+                }
+
+              }
+           }
         }
       }      
-
-      // Step1 
-      // Configuration Management
-      // Delete all and recreate - use folder structure in code base as a convention
-      // Config Map       // shared lib
-      // Secrets          // shared lib
-      // Environments etc // shared lib
-
-
-      // Step 2
-      // Shared Lib
-      // Simple Deploy to Dev
-        // See below from Janne
-        // def dc = openshift.selector('dc', "${applicationName}")
-        // dcmap = dc.object()
-        // dcmap.spec.template.spec.containers[0].image = "${registry}/${registryNamespace}/${imageStream}:${imageTag}"
-        // dcmap.spec.replicas = replicaCount
-        // openshift.apply(dcmap)
-
-      // Step 3
-      // Apply newly created Configm Maps and Secrets
-      // Might require patching the deployment config
-      // Patch the DC because its a variable number of things. Just with the Config Map stuff, not a full template
-
-      // NOTE:
-      // For the spike we might hard code the adding of the config map as the above functioanlity will take some time
     }
 
-    stage('QA Image'){
-      // TODO: Describe purpose of QA Image
-      // Blank for now
+    stage('QA Image in Dev'){
+      // Blank for now - Maybe Pause here
       // Automated black box testing / functioanl testing / API testing etc 
       steps {
         script {
@@ -190,53 +196,53 @@ pipeline {
       }        
     }
 
-    stage('Deploy to Test'){
-      // TODO: Describe purpose of Deploy to Test
+    // stage('Deploy to Test'){
+    //   // TODO: Describe purpose of Deploy to Test
       
 
-      // only runs for master and hotfix branches - add check
-      // Prompt user if they want to move specific version image to test
-      // TAg it // possibly shared lib
+    //   // only runs for master and hotfix branches - add check
+    //   // Prompt user if they want to move specific version image to test
+    //   // TAg it // possibly shared lib
 
-      // Similar to "Deploy to Dev"
+    //   // Similar to "Deploy to Dev"
 
-      steps {
-        script {
-          sh 'echo "Running the Deploy to Test Stage" '
-        }
-      }        
+    //   steps {
+    //     script {
+    //       sh 'echo "Running the Deploy to Test Stage" '
+    //     }
+    //   }        
 
-    }
+    // }
 
-    stage('Prepare Image for Prod'){
-      // TODO: Describe purpose of Prepare Image for Prod
+    // stage('Prepare Image for Prod'){
+    //   // TODO: Describe purpose of Prepare Image for Prod
 
-      steps {
-        script {
-          sh 'echo "Running the Prepare Image for Prod Stage" '
-        }
-      }  
+    //   steps {
+    //     script {
+    //       sh 'echo "Running the Prepare Image for Prod Stage" '
+    //     }
+    //   }  
       
-      // NOTE: this entire step is probably not required for the spike
+    //   // NOTE: this entire step is probably not required for the spike
 
-      // only runs for master and hotfix branches
+    //   // only runs for master and hotfix branches
 
-      // only runs for master and hotfix branches - add check
-      // Prompt user if they want to move specific version image to test
-      // Tag it // possibly shared lib
+    //   // only runs for master and hotfix branches - add check
+    //   // Prompt user if they want to move specific version image to test
+    //   // Tag it // possibly shared lib
 
-      // Push using Skopeo
+    //   // Push using Skopeo
 
-      // ISSUE HERE!!!!
-      // ISSUE HERE!!!!
+    //   // ISSUE HERE!!!!
+    //   // ISSUE HERE!!!!
       
-      // What happens in the scenario where the QA manual testing takes a week?
-      // Does the pipeline pause?
-      // Could be a backlog of executing pipelines?
-      // Look at milestones and     runPolicy: SerialLatestOnly
+    //   // What happens in the scenario where the QA manual testing takes a week?
+    //   // Does the pipeline pause?
+    //   // Could be a backlog of executing pipelines?
+    //   // Look at milestones and     runPolicy: SerialLatestOnly
 
-      // Stick in Nexus instead of Remote registry
-    }
+    //   // Stick in Nexus instead of Remote registry
+    // }
 
   }
 }
@@ -246,7 +252,6 @@ pipeline {
 // Multibranch pipeline plugin v2.15 (https://updates.jenkins.io/download/plugins/workflow-multibranch/2.15/workflow-multibranch.hpi)       done! 
 // HTML Publisher v1.16 (https://updates.jenkins.io/download/plugins/htmlpublisher/1.16/htmlpublisher.hpi)
 // Milestones plugin v1.3 (https://updates.jenkins.io/download/plugins/pipeline-milestone-step/1.3/pipeline-milestone-step.hpi)
-
 
 
 
