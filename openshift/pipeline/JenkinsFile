@@ -5,9 +5,10 @@
 def GIT_REPO = "github.com/cfoskin/migration-mainlines-cloud.git";
 def GIT_BRANCH = 'jenkins-pipeline-setup';
 def APP_VERSION = '';
-def STASHED_ARTIFACT = 'buildArtifact'
-def DEV_NAMESPACE = 'nr-dev-cf'
-def APP_NAME = 'develop'
+def STASHED_ARTIFACT = 'buildArtifact';
+def DEV_NAMESPACE = 'nr-dev-cf';
+def TEST_NAMESPACE = 'nr-test-cf';
+def APP_NAME = 'mainlines-cloud';
 
 pipeline {
 
@@ -32,32 +33,22 @@ pipeline {
       // Let the user input what branch to build, defaults to the develop branch as per spec.
       steps {
         script {
-          try {
-              timeout(time: 60, unit: 'SECONDS') {
-                  GIT_BRANCH = input(
-                      message: 'Set branch name:',
-                      parameters: [
-                          string(name: "branchName", description: "Branch to deploy, the default is ${GIT_BRANCH}", defaultValue: "${GIT_BRANCH}")
-                      ]
-                  )
-              }
-          } catch(err) { } // catch the timeout error, proceed despite the error
-        }
-      }
-    }
-
-    stage('Clone') {
-      // Clone the source code using the git branch specified previously
-      steps {
-        script {
           dir('oc-build') {
-              git branch:"${GIT_BRANCH}", url:"https://${GIT_REPO}"
+            try {
+                timeout(time: 60, unit: 'SECONDS') {
+                    GIT_BRANCH = input(
+                        message: 'Set branch name:',
+                        parameters: [
+                            string(name: "branchName", description: "Branch to deploy, the default is ${GIT_BRANCH}", defaultValue: "${GIT_BRANCH}")
+                        ]
+                    )
+                }
+            } catch(err) { } // catch the timeout error, proceed despite the error
+            //clone the source code
+            git branch:"${GIT_BRANCH}", url:"https://${GIT_REPO}"
           }
         }
       }
-      // shared lib, pass in default as a param or default to develop. Default the default
-      // Prompt for branch/tag, default to develop, Jannes example good here
-      // Need ot be able to accept a branch or tag
     }
 
      stage('Set Version'){
@@ -86,16 +77,9 @@ pipeline {
             sh 'tar --exclude=".git" --exclude="./node_modules" -cvf ./archive.tar ./ || [[ $? -eq 1 ]]'
             // Stash the build artifact
             stash includes: 'archive.tar', name: STASHED_ARTIFACT
-            sh 'mkdir stash_test' //for testing
           }
         }
       }
-      // can be shared lib???
-      // npm install
-      // npm build
-      // tar artifact
-      // stash
-
     }
 
     stage('QA Code'){
@@ -105,7 +89,6 @@ pipeline {
           sh 'echo "Running the QA Code Stage (Unit tests, SonarQube etc...)" '
         }
       }
-
     }
 
     stage('Build Image'){
@@ -135,6 +118,8 @@ pipeline {
                       return it.object().status.phase == 'Complete'
                   }
               } 
+              //tag the image with the application version
+              openshift.tag("${DEV_NAMESPACE}/${APP_NAME}:latest", "${DEV_NAMESPACE}/${APP_NAME}:"+APP_VERSION)
             }
           }
         }
@@ -143,6 +128,7 @@ pipeline {
 
     stage('Deploy to Dev'){
       //Deploy the image to the dev environment but manage environment variables first with configmaps, secrets etc
+      steps {
         script {
           openshift.withProject(DEV_NAMESPACE) {
               dir('oc-build'){
@@ -163,7 +149,6 @@ pipeline {
 
 
                 echo "Rolling out Deployment of Application.."
-                def dcObj = dc.object()
                 def dc = openshift.selector( "dc/${APP_NAME}")
                 if (dc.exists()) {
                   if (cfgEnv.exists()) {
@@ -179,7 +164,6 @@ pipeline {
                     echo "VERIFY pod: ${it.name()}"
                     return it.object().status.containerStatuses[0].ready
                 }
-
               }
            }
         }
@@ -196,23 +180,68 @@ pipeline {
       }        
     }
 
-    // stage('Deploy to Test'){
-    //   // TODO: Describe purpose of Deploy to Test
-      
+    stage('Tag Image for Test'){
+      // Tag the image for test after the QA stage had been completed
+      steps {
+        script {
+          input 'Proceed with deployment to Test?'
+          openshift.withProject(DEV_NAMESPACE) {
+              openshift.tag("${DEV_NAMESPACE}/${APP_NAME}:"+APP_VERSION, "${DEV_NAMESPACE}/${APP_NAME}:toTest")
+          }
+        }
+      }        
+    }
 
-    //   // only runs for master and hotfix branches - add check
-    //   // Prompt user if they want to move specific version image to test
-    //   // TAg it // possibly shared lib
+    stage ('Deploy to Test') {
+      // Deploy promoted image to Test environment
+      steps {
+        script {
+            openshift.withProject(TEST_NAMESPACE) {
+              // only runs for master and hotfix branches 
+              if(GIT_BRANCH == 'master' || GIT_BRANCH.contains('hotfix'))
+              {
+                sh 'echo "Running the Deploy to Test Environment" '
+                // tag image to test
+                openshift.tag("${DEV_NAMESPACE}/${APP_NAME}:toTest", "${TEST_NAMESPACE}/${APP_NAME}:"+APP_VERSION)
+                openshift.tag("${TEST_NAMESPACE}/${APP_NAME}:"+APP_VERSION, "${TEST_NAMESPACE}/${APP_NAME}:latest")
 
-    //   // Similar to "Deploy to Dev"
+                sh 'echo "Managing Environment Variables in Test" '
+                def cmEnv = "openshift/properties/configmaps/test.properties"
+          
+                def cfgEnv = openshift.selector("cm/${APP_NAME}-cm-env")
+                if (cfgEnv.exists()) {
+                  cfgEnv.delete()
+                }
+                if (fileExists(cmEnv)) {
+                    openshift.create("configmap", "${APP_NAME}-cm-env", "--from-env-file=${cmEnv}")
+                } else {
+                    echo 'No CM-ENV file Exists'
+                }
 
-    //   steps {
-    //     script {
-    //       sh 'echo "Running the Deploy to Test Stage" '
-    //     }
-    //   }        
+                def dc = openshift.selector( "dc/${APP_NAME}")
+                if (dc.exists()) {
+                    echo "Removing trigger for Deployment config"
+                    openshift.set("triggers", "dc/${APP_NAME}", "--from-config", "--remove")
+                    openshift.set("triggers", "dc/${APP_NAME}", "--from-image=${TEST_NAMESPACE}/${APP_NAME}:latest", "--remove")
 
-    // }
+                    echo "Applying Configmap to Deployment Configuration"
+                    openshift.set("env", "dc/${APP_NAME}", "--from=configmap/${APP_NAME}-cm-env")
+                    dc.rollout().latest()
+                }
+                
+                echo "Application deployment has been rolled out"
+                def dcObj = dc.object()
+                def podSelector = openshift.selector('pod', [deployment: "${APP_NAME}-${dcObj.status.latestVersion}"])
+                
+                podSelector.untilEach {
+                  echo "VERIFY pod: ${it.name()}"
+                  return it.object().status.containerStatuses[0].ready
+                }
+            }
+          }
+        }
+      }
+    } // stage
 
     // stage('Prepare Image for Prod'){
     //   // TODO: Describe purpose of Prepare Image for Prod
